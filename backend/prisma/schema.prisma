@@ -1,0 +1,335 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  username     String        @unique
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  defaultCurrency String @default("CNY") @map("default_currency")
+  accounts     Account[]
+  transactions Transaction[]
+  categories   Category[]
+  tags         Tag[]
+  rules        Rule[]
+  recurringTransactions RecurringTransaction[]
+  budgets      Budget[]
+  piggyBanks   PiggyBank[]
+  emailConfig  EmailConfig?
+  emailImportLogs    EmailImportLog[]
+  cardAccountMappings CardAccountMapping[]
+
+  @@map("users")
+}
+
+model Category {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  name         String
+  type         String   // income, expense, transfer
+  icon         String?  // emoji or icon name
+  isSystem     Boolean  @default(false) @map("is_system")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+
+  @@unique([userId, name, type])
+  @@index([userId])
+  @@map("categories")
+}
+
+model Account {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  name        String
+  accountType String   @map("account_type") // asset, liability, income, expense
+  subtype     String?  // cash, checking, credit_card, savings, investment, debt, receivables, virtual
+  icon        String?  // emoji or icon name
+  currency    String   @default("CNY") // ISO 4217
+  parentId    String?  @map("parent_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent     Account?           @relation("AccountParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children   Account[]          @relation("AccountParent")
+  entries    TransactionEntry[]
+  piggyBanks PiggyBank[]
+  cardMappings CardAccountMapping[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([parentId])
+  @@map("accounts")
+}
+
+model Transaction {
+  id              String            @id @default(uuid())
+  userId          String            @map("user_id")
+  transactionDate DateTime          @map("transaction_date")
+  description     String?
+  categoryId      String?           @map("category_id")
+  status          String            @default("posted") // draft, posted, void
+  importedId      String?           @map("imported_id") // deduplication for imports
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  entries         TransactionEntry[]
+  tags            TransactionTag[]
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, importedId])
+  @@index([userId])
+  @@index([userId, transactionDate])
+  @@index([transactionDate])
+  @@index([categoryId])
+  @@map("transactions")
+}
+
+model TransactionEntry {
+  id              String   @id @default(uuid())
+  transactionId   String   @map("transaction_id")
+  accountId       String   @map("account_id")
+  entryType       String   @map("entry_type") // debit, credit
+  amount          Int
+  foreignAmount   Int?     @map("foreign_amount")
+  foreignCurrency String?  @map("foreign_currency") // ISO 4217
+  exchangeRate    Float?   @map("exchange_rate")
+  description     String?
+  lineNo          Int      @map("line_no")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  account     Account     @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId])
+  @@index([accountId])
+  @@index([accountId, entryType])
+  @@map("transaction_entries")
+}
+
+// ===== Tags =====
+
+model Tag {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  name      String
+  color     String?
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions TransactionTag[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("tags")
+}
+
+model TransactionTag {
+  transactionId String @map("transaction_id")
+  tagId         String @map("tag_id")
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([transactionId, tagId])
+  @@index([tagId])
+  @@map("transaction_tags")
+}
+
+// ===== Rules Engine =====
+
+model Rule {
+  id         String        @id @default(uuid())
+  userId     String        @map("user_id")
+  title      String
+  isActive   Boolean       @default(true) @map("is_active")
+  order      Int           @default(0)
+  strictMode Boolean       @default(true) @map("strict_mode") // true=AND, false=OR
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  triggers RuleTrigger[]
+  actions  RuleAction[]
+
+  @@index([userId])
+  @@map("rules")
+}
+
+model RuleTrigger {
+  id           String @id @default(uuid())
+  ruleId       String @map("rule_id")
+  triggerType  String @map("trigger_type") // description_contains, amount_greater, amount_less
+  triggerValue String @map("trigger_value")
+  order        Int    @default(0)
+
+  rule Rule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@map("rule_triggers")
+}
+
+model RuleAction {
+  id          String @id @default(uuid())
+  ruleId      String @map("rule_id")
+  actionType  String @map("action_type") // set_category, add_tag, set_description
+  actionValue String @map("action_value")
+  order       Int    @default(0)
+
+  rule Rule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@map("rule_actions")
+}
+
+// ===== Recurring Transactions =====
+
+model RecurringTransaction {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  title          String
+  isActive       Boolean   @default(true) @map("is_active")
+  repeatFreq     String    @map("repeat_freq") // daily, weekly, monthly, yearly
+  repeatInterval Int       @default(1) @map("repeat_interval")
+  startDate      DateTime  @map("start_date")
+  endDate        DateTime? @map("end_date")
+  lastTriggered  DateTime? @map("last_triggered")
+  templateData   String    @map("template_data") // JSON string
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("recurring_transactions")
+}
+
+// ===== Budgets =====
+
+model Budget {
+  id         String        @id @default(uuid())
+  userId     String        @map("user_id")
+  name       String
+  categoryId String?       @map("category_id")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  limits   BudgetLimit[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([categoryId])
+  @@map("budgets")
+}
+
+model BudgetLimit {
+  id        String   @id @default(uuid())
+  budgetId  String   @map("budget_id")
+  amount    Int      // cents
+  currency  String   @default("CNY")
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId])
+  @@index([startDate, endDate])
+  @@map("budget_limits")
+}
+
+// ===== Piggy Banks =====
+
+model PiggyBank {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  name          String
+  targetAmount  Int       @map("target_amount") // cents
+  currentAmount Int       @default(0) @map("current_amount") // cents
+  currency      String    @default("CNY")
+  targetDate    DateTime? @map("target_date")
+  accountId     String?   @map("account_id")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([accountId])
+  @@map("piggy_banks")
+}
+
+// ===== Email Import Config =====
+
+model EmailConfig {
+  id        String    @id @default(uuid())
+  userId    String    @unique @map("user_id")
+  host      String    // IMAP host, e.g. imap.qq.com
+  port      Int       @default(993)
+  secure    Boolean   @default(true)
+  email     String    // email address
+  password  String    // app-specific password
+  lastFetch DateTime? @map("last_fetch")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_configs")
+}
+
+// ===== Email Import Logs (dedup) =====
+
+model EmailImportLog {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  messageId   String   @map("message_id")
+  subject     String?
+  bankName    String?  @map("bank_name")
+  cardLast4   String?  @map("card_last4")
+  txCount     Int      @default(0) @map("tx_count")
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([userId])
+  @@map("email_import_logs")
+}
+
+// ===== Card Account Mapping =====
+
+model CardAccountMapping {
+  id        String  @id @default(uuid())
+  userId    String  @map("user_id")
+  bankName  String  @map("bank_name")
+  cardLast4 String? @map("card_last4")
+  accountId String  @map("account_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bankName, cardLast4])
+  @@index([userId])
+  @@map("card_account_mappings")
+}

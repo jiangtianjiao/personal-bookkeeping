@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.env.*
+*.db
+*.db-journal
+.git
+*.md
+.vscode
+.idea
+*.log
+coverage
