@@ -15,6 +15,7 @@ import recurringRoutes from './routes/recurring';
 import budgetRoutes from './routes/budgets';
 import piggyBankRoutes from './routes/piggyBanks';
 import importRoutes from './routes/import';
+import aiRoutes from './routes/ai';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { setupApiDocs } from './config/apiDocs';
@@ -106,6 +107,7 @@ app.use('/api/recurring', recurringRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/piggy-banks', piggyBankRoutes);
 app.use('/api', importRoutes);
+app.use('/api/ai', aiRoutes);
 
 // API info route
 app.get('/api', (req, res) => {
@@ -125,6 +127,7 @@ app.get('/api', (req, res) => {
       piggyBanks: '/api/piggy-banks',
       import: '/api/import/upload',
       export: '/api/export',
+      ai: '/api/ai',
     },
   });
 });

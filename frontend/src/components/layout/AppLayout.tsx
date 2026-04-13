@@ -18,6 +18,7 @@ import {
   SyncOutlined,
   SaveOutlined,
   BulbOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -52,6 +53,7 @@ const AppLayout: React.FC = () => {
     if (path.startsWith('/budgets')) return 'budgets';
     if (path.startsWith('/recurring')) return 'recurring';
     if (path.startsWith('/piggy-banks')) return 'piggy-banks';
+    if (path.startsWith('/chat')) return 'chat';
     if (path.startsWith('/settings')) return 'settings';
     return 'dashboard';
   };
@@ -74,6 +76,7 @@ const AppLayout: React.FC = () => {
     { key: 'recurring', icon: <SyncOutlined />, label: '周期交易', onClick: () => nav('/recurring') },
     { key: 'piggy-banks', icon: <SaveOutlined />, label: '存钱罐', onClick: () => nav('/piggy-banks') },
     { type: 'divider' as const },
+    { key: 'chat', icon: <RobotOutlined />, label: 'AI助手', onClick: () => nav('/chat') },
     { key: 'settings', icon: <SettingOutlined />, label: '系统设置', onClick: () => nav('/settings') },
   ];
 

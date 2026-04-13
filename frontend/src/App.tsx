@@ -21,6 +21,7 @@ const RulePage = React.lazy(() => import('./pages/RulePage'));
 const BudgetPage = React.lazy(() => import('./pages/BudgetPage'));
 const RecurringPage = React.lazy(() => import('./pages/RecurringPage'));
 const PiggyBankPage = React.lazy(() => import('./pages/PiggyBankPage'));
+const ChatPage = React.lazy(() => import('./pages/ChatPage'));
 
 const LazyFallback = () => (
   <div style={{ textAlign: 'center', padding: '80px 0' }}>
@@ -126,6 +127,7 @@ function App() {
           <Route path="budgets" element={<LazyRoute><BudgetPage /></LazyRoute>} />
           <Route path="recurring" element={<LazyRoute><RecurringPage /></LazyRoute>} />
           <Route path="piggy-banks" element={<LazyRoute><PiggyBankPage /></LazyRoute>} />
+          <Route path="chat" element={<LazyRoute><ChatPage /></LazyRoute>} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
